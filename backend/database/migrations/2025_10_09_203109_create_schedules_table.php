@@ -6,20 +6,26 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    public function up(): void
+    /**
+     * Run the migrations.
+     */
+    public function up()
     {
-        Schema::create('pages', function (Blueprint $table) {
+        Schema::create('schedules', function (Blueprint $table) {
             $table->id();
             $table->foreignId('business_id')->constrained()->onDelete('cascade');
-            $table->json('content');
-            $table->json('theme_config')->nullable();
-            $table->boolean('is_published')->default(false);
+            $table->integer('weekday'); // 0=domingo, 6=sábado
+            $table->time('start_time');
+            $table->time('end_time');
             $table->timestamps();
         });
     }
 
+    /**
+     * Reverse the migrations.
+     */
     public function down(): void
     {
-        Schema::dropIfExists('pages');
+        Schema::dropIfExists('schedules');
     }
 };

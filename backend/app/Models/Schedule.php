@@ -4,19 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-class Service extends Model
+class Schedule extends Model
 {
     protected $fillable = [
         'business_id',
-        'name',
-        'duration_minutes',
-        'price',
-        'image_url',
-        'order'
-    ];
-
-    protected $casts = [
-        'price' => 'decimal:2',
+        'weekday',
+        'start_time',
+        'end_time'
     ];
 
     public function business()

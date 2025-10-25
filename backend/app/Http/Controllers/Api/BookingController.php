@@ -89,13 +89,17 @@ class BookingController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'business_id' => 'required|exists:businesses,id',
-            'service_id' => 'required|exists:services,id',
-            'customer_name' => 'required|string|max:255',
-            'customer_email' => 'required|email|max:255',
-            'date' => 'required|date|after_or_equal:today',
-            'time' => 'required|date_format:H:i',
-        ]);
+        'business_id' => 'required|exists:businesses,id',
+        'service_id' => 'required|exists:services,id',
+        'customer_name' => 'required|string|max:255|min:3',
+        'customer_email' => 'required|email|max:255',
+        'date' => 'required|date|after_or_equal:today',
+        'time' => 'required|date_format:H:i',
+    ], [
+        'customer_name.min' => 'El nombre debe tener al menos 3 caracteres',
+        'customer_email.email' => 'Por favor ingresa un email válido',
+        'date.after_or_equal' => 'No puedes reservar en fechas pasadas',
+    ]);
 
     $service = Service::findOrFail($request->service_id);
     

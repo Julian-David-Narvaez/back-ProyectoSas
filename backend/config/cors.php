@@ -20,7 +20,7 @@ return [
     | Allowed Origins (usar variable de entorno para producción)
     |--------------------------------------------------------------------------
     */
-    'allowed_origins' => explode(',', env('CORS_ALLOWED_ORIGINS', 'https://saas-citas.vercel.app')),
+    'allowed_origins' => ['https://saas-citas.vercel.app',  'http://localhost:5173'],
 
     /*
     |--------------------------------------------------------------------------

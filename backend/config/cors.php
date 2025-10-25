@@ -17,17 +17,17 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Allowed Origins
+    | Allowed Origins (usar variable de entorno para producción)
     |--------------------------------------------------------------------------
     */
-    'allowed_origins' => ['https://saas-citas.vercel.app'],
+    'allowed_origins' => explode(',', env('CORS_ALLOWED_ORIGINS', 'https://saas-citas.vercel.app')),
 
     /*
     |--------------------------------------------------------------------------
     | Allowed Origins Patterns
     |--------------------------------------------------------------------------
     */
-    'allowed_origins_patterns' => [],
+    'allowed_origins_patterns' => ['^https://.*\.vercel\.app$'],
 
     /*
     |--------------------------------------------------------------------------

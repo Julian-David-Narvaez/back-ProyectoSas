@@ -20,7 +20,8 @@ class BookingConfirmationMail extends Mailable
      */
     public function __construct($booking)
     {
-        $this->booking = $booking;
+        // IMPORTANTE: Cargar las relaciones necesarias
+        $this->booking = $booking->load('service.business');
     }
 
     /**
@@ -29,7 +30,7 @@ class BookingConfirmationMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: '¡Tu cita ha sido confirmada!', 
+            subject: '✅ Confirmación de tu Cita - ' . ($this->booking->service->business->name ?? 'Citas'),
         );
     }
 

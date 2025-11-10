@@ -151,20 +151,31 @@ class BookingController extends Controller
     ]);
 
     // Enviar correo de confirmación
-    try {
-        Mail::to($booking->customer_email)->send(new BookingConfirmationMail($booking));
-    } catch (\Exception $e) {
-        Log::error('Error enviando correo de confirmación de reserva', [
-            'error' => $e->getMessage(),
-            'booking_id' => $booking->id,
-        ]);
-    }
+        try {
+            Log::info('Intentando enviar correo de confirmación', [
+                'booking_id' => $booking->id,
+                'email' => $booking->customer_email,
+            ]);
+            
+            Mail::to($booking->customer_email)->send(new BookingConfirmationMail($booking));
+            
+            Log::info('Correo enviado exitosamente', [
+                'booking_id' => $booking->id,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error enviando correo de confirmación de reserva', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'booking_id' => $booking->id,
+                'customer_email' => $booking->customer_email,
+            ]);
+        }
 
-    return response()->json([
-        'message' => 'Reserva creada exitosamente',
-        'booking' => $booking->load('service')
-    ], 201);
-}
+            return response()->json([
+                'message' => 'Reserva creada exitosamente',
+                'booking' => $booking->load('service')
+            ], 201);
+        }
 
     /**
      * Listar reservas de un negocio (para admin)

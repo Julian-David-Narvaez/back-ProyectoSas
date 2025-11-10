@@ -90,81 +90,156 @@ class BookingController extends Controller
      */
     public function store(Request $request)
     {
-        $request->validate([
-        'business_id' => 'required|exists:businesses,id',
-        'service_id' => 'required|exists:services,id',
-        'customer_name' => 'required|string|max:255|min:3',
-        'customer_email' => 'required|email|max:255',
-        'date' => 'required|date|after_or_equal:today',
-        'time' => 'required|date_format:H:i',
-    ], [
-        'customer_name.min' => 'El nombre debe tener al menos 3 caracteres',
-        'customer_email.email' => 'Por favor ingresa un email válido',
-        'date.after_or_equal' => 'No puedes reservar en fechas pasadas',
-    ]);
-
-    $service = Service::findOrFail($request->service_id);
-    
-    // Verificar que el servicio pertenece al negocio
-    if ($service->business_id != $request->business_id) {
-        return response()->json(['message' => 'Servicio no válido'], 400);
-    }
-
-    // CORRECCIÓN: Combinar fecha y hora correctamente
-    $startAt = Carbon::parse($request->date . ' ' . $request->time);
-    $endAt = $startAt->copy()->addMinutes($service->duration_minutes);
-
-    // Log para debug
-    Log::info('Creando reserva', [
-        'date' => $request->date,
-        'time' => $request->time,
-        'start_at' => $startAt->toDateTimeString(),
-        'end_at' => $endAt->toDateTimeString(),
-    ]);
-
-    // Verificar disponibilidad
-    $conflict = Booking::where('business_id', $request->business_id)
-        ->where('status', 'confirmed')
-        ->where(function($query) use ($startAt, $endAt) {
-            $query->where(function($q) use ($startAt, $endAt) {
-                $q->where('start_at', '<', $endAt)
-                  ->where('end_at', '>', $startAt);
-            });
-        })
-        ->exists();
-
-    if ($conflict) {
-        return response()->json([
-            'message' => 'Este horario ya no está disponible'
-        ], 409);
-    }
-
-    $booking = Booking::create([
-        'business_id' => $request->business_id,
-        'service_id' => $service->id,
-        'user_id' => auth()->id(), // Puede ser null para clientes sin cuenta
-        'customer_name' => $request->customer_name,
-        'customer_email' => $request->customer_email,
-        'start_at' => $startAt,
-        'end_at' => $endAt,
-        'status' => 'confirmed',
-    ]);
-
-    // Enviar correo de confirmación
-    try {
-        Mail::to($booking->customer_email)->send(new BookingConfirmationMail($booking));
-    } catch (\Exception $e) {
-        Log::error('Error enviando correo de confirmación de reserva', [
-            'error' => $e->getMessage(),
-            'booking_id' => $booking->id,
+        // LOG 1: Inicio del proceso
+        Log::info('=== INICIO PROCESO DE RESERVA ===', [
+            'customer_email' => $request->customer_email,
+            'customer_name' => $request->customer_name,
+            'date' => $request->date,
+            'time' => $request->time,
         ]);
+
+        $request->validate([
+            'business_id' => 'required|exists:businesses,id',
+            'service_id' => 'required|exists:services,id',
+            'customer_name' => 'required|string|max:255|min:3',
+            'customer_email' => 'required|email|max:255',
+            'date' => 'required|date|after_or_equal:today',
+            'time' => 'required|date_format:H:i',
+        ], [
+            'customer_name.min' => 'El nombre debe tener al menos 3 caracteres',
+            'customer_email.email' => 'Por favor ingresa un email válido',
+            'date.after_or_equal' => 'No puedes reservar en fechas pasadas',
+        ]);
+
+        $service = Service::findOrFail($request->service_id);
+        
+        // Verificar que el servicio pertenece al negocio
+        if ($service->business_id != $request->business_id) {
+            return response()->json(['message' => 'Servicio no válido'], 400);
+        }
+
+        // CORRECCIÓN: Combinar fecha y hora correctamente
+        $startAt = Carbon::parse($request->date . ' ' . $request->time);
+        $endAt = $startAt->copy()->addMinutes($service->duration_minutes);
+
+        // Log para debug
+        Log::info('Creando reserva', [
+            'date' => $request->date,
+            'time' => $request->time,
+            'start_at' => $startAt->toDateTimeString(),
+            'end_at' => $endAt->toDateTimeString(),
+        ]);
+
+        // Verificar disponibilidad
+        $conflict = Booking::where('business_id', $request->business_id)
+            ->where('status', 'confirmed')
+            ->where(function($query) use ($startAt, $endAt) {
+                $query->where(function($q) use ($startAt, $endAt) {
+                    $q->where('start_at', '<', $endAt)
+                      ->where('end_at', '>', $startAt);
+                });
+            })
+            ->exists();
+
+        if ($conflict) {
+            return response()->json([
+                'message' => 'Este horario ya no está disponible'
+            ], 409);
+        }
+
+        $booking = Booking::create([
+            'business_id' => $request->business_id,
+            'service_id' => $service->id,
+            'user_id' => auth()->id(), // Puede ser null para clientes sin cuenta
+            'customer_name' => $request->customer_name,
+            'customer_email' => $request->customer_email,
+            'start_at' => $startAt,
+            'end_at' => $endAt,
+            'status' => 'confirmed',
+        ]);
+
+        // LOG 2: Reserva creada exitosamente
+        Log::info('✅ Reserva creada exitosamente', [
+            'booking_id' => $booking->id,
+            'customer_email' => $booking->customer_email,
+        ]);
+
+        // Cargar las relaciones necesarias para el correo
+        $booking->load('service.business');
+
+        // LOG 3: Datos cargados para el correo
+        Log::info('📧 Preparando envío de correo', [
+            'booking_id' => $booking->id,
+            'to_email' => $booking->customer_email,
+            'customer_name' => $booking->customer_name,
+            'service_name' => $booking->service->name ?? 'N/A',
+            'business_name' => $booking->service->business->name ?? 'N/A',
+        ]);
+
+        // LOG 4: Configuración de correo
+        Log::info('⚙️ Configuración de correo', [
+            'MAIL_MAILER' => config('mail.default'),
+            'MAIL_HOST' => config('mail.mailers.smtp.host'),
+            'MAIL_PORT' => config('mail.mailers.smtp.port'),
+            'MAIL_USERNAME' => config('mail.mailers.smtp.username'),
+            'MAIL_ENCRYPTION' => config('mail.mailers.smtp.encryption'),
+            'MAIL_FROM_ADDRESS' => config('mail.from.address'),
+            'MAIL_FROM_NAME' => config('mail.from.name'),
+        ]);
+
+        // Enviar correo de confirmación
+        try {
+            Log::info('🚀 Intentando enviar correo...');
+            
+            Mail::to($booking->customer_email)->send(new BookingConfirmationMail($booking));
+            
+            // LOG 5: Correo enviado exitosamente
+            Log::info('✅ ¡CORREO ENVIADO EXITOSAMENTE!', [
+                'booking_id' => $booking->id,
+                'email_sent_to' => $booking->customer_email,
+                'timestamp' => now()->toDateTimeString(),
+            ]);
+
+        } catch (\Exception $e) {
+            // LOG 6: Error al enviar correo
+            Log::error('❌ ERROR AL ENVIAR CORREO', [
+                'booking_id' => $booking->id,
+                'error_message' => $e->getMessage(),
+                'error_code' => $e->getCode(),
+                'error_file' => $e->getFile(),
+                'error_line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+        }
+
+        // LOG 7: Fin del proceso
+        Log::info('=== FIN PROCESO DE RESERVA ===', [
+            'booking_id' => $booking->id,
+            'status' => 'success',
+        ]);
+
+        return response()->json([
+            'message' => 'Reserva creada exitosamente',
+            'booking' => $booking->load('service')
+        ], 201);
     }
 
-    return response()->json([
-        'message' => 'Reserva creada exitosamente',
-        'booking' => $booking->load('service')
-    ], 201);
-}
+    /**
+     * Generar slots de tiempo
+     */
+    private function generateTimeSlots($startTime, $endTime, $duration)
+    {
+        $slots = [];
+        $current = Carbon::parse($startTime);
+        $end = Carbon::parse($endTime);
+
+        while ($current->lt($end)) {
+            $slots[] = $current->format('H:i');
+            $current->addMinutes($duration);
+        }
+
+        return $slots;
+    }
 
     /**
      * Listar reservas de un negocio (para admin)
@@ -200,14 +275,17 @@ class BookingController extends Controller
             ->findOrFail($bookingId);
 
         $request->validate([
-            'status' => 'sometimes|in:confirmed,cancelled,completed',
-            'start_at' => 'sometimes|date',
-            'end_at' => 'sometimes|date|after:start_at',
+            'status' => 'required|in:confirmed,completed,cancelled',
         ]);
 
-        $booking->update($request->all());
+        $booking->update([
+            'status' => $request->status,
+        ]);
 
-        return response()->json($booking->load('service'));
+        return response()->json([
+            'message' => 'Reserva actualizada exitosamente',
+            'booking' => $booking->load('service')
+        ]);
     }
 
     /**
@@ -227,26 +305,7 @@ class BookingController extends Controller
         $booking->update(['status' => 'cancelled']);
 
         return response()->json([
-            'message' => 'Reserva cancelada',
-            'booking' => $booking
+            'message' => 'Reserva cancelada exitosamente'
         ]);
-    }
-
-    /**
-     * Generar slots de tiempo
-     */
-    private function generateTimeSlots($startTime, $endTime, $duration)
-    {
-        $slots = [];
-        $start = Carbon::parse($startTime);
-        $end = Carbon::parse($endTime);
-        $interval = 15; // Intervalo de 15 minutos
-
-        while ($start->copy()->addMinutes($duration) <= $end) {
-            $slots[] = $start->format('H:i');
-            $start->addMinutes($interval);
-        }
-
-        return $slots;
     }
 }

@@ -9,6 +9,8 @@ use App\Models\Booking;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\BookingConfirmationMail;
 
 class BookingController extends Controller
 {
@@ -147,6 +149,16 @@ class BookingController extends Controller
         'end_at' => $endAt,
         'status' => 'confirmed',
     ]);
+
+    // Enviar correo de confirmación
+    try {
+        Mail::to($booking->customer_email)->send(new BookingConfirmationMail($booking));
+    } catch (\Exception $e) {
+        Log::error('Error enviando correo de confirmación de reserva', [
+            'error' => $e->getMessage(),
+            'booking_id' => $booking->id,
+        ]);
+    }
 
     return response()->json([
         'message' => 'Reserva creada exitosamente',

@@ -29,7 +29,7 @@ class BookingConfirmationMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Booking Confirmation Mail',
+            subject: '¡Tu cita ha sido confirmada!', 
         );
     }
 

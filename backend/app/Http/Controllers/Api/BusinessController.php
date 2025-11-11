@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Business;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use App\Models\Booking;
 
 class BusinessController extends Controller
 {
@@ -97,5 +99,41 @@ class BusinessController extends Controller
             ->firstOrFail();
 
         return response()->json($business);
+    }
+
+    public function destroy($id)
+    {
+        $business = Business::with('page.blocks')->findOrFail($id);
+
+        // Verificar que pertenece al usuario autenticado
+        if ($business->user_id !== auth()->id()) {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
+
+        DB::beginTransaction();
+        try {
+            // Eliminar bookings relacionados
+            Booking::where('business_id', $business->id)->delete();
+
+            // Eliminar servicios y horarios
+            $business->services()->delete();
+            $business->schedules()->delete();
+
+            // Eliminar página y bloques asociados
+            if ($business->page) {
+                $business->page->blocks()->delete();
+                $business->page()->delete();
+            }
+
+            // Finalmente eliminar el negocio
+            $business->delete();
+
+            DB::commit();
+
+            return response()->json(['message' => 'Negocio eliminado correctamente']);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['message' => 'Error al eliminar negocio', 'error' => $e->getMessage()], 500);
+        }
     }
 }

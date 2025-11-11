@@ -26,7 +26,8 @@ class SuperAdminController extends Controller
             'email' => 'required|email|unique:users',
             'password' => 'required|string|min:8',
             'role' => 'sometimes|string',
-            'page_limit' => 'sometimes|integer|min:0',
+            // Allow -1 to represent "unlimited"
+            'page_limit' => 'sometimes|integer|min:-1',
         ]);
 
         $user = User::create([
@@ -43,8 +44,9 @@ class SuperAdminController extends Controller
     // Actualizar page_limit de un usuario
     public function updatePageLimit(Request $request, $id)
     {
+        // Allow -1 to represent "unlimited"
         $request->validate([
-            'page_limit' => 'required|integer|min:0',
+            'page_limit' => 'required|integer|min:-1',
         ]);
 
         $user = User::findOrFail($id);

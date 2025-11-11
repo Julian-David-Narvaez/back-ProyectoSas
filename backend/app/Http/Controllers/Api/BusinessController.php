@@ -12,8 +12,37 @@ class BusinessController extends Controller
 {
     public function index(Request $request)
     {
-        $businesses = Business::where('user_id', $request->user()->id)->get();
-        return response()->json($businesses);
+        $authUser = $request->user();
+
+        // Determinar si el requester es superadmin
+        $isSuperAdmin = isset($authUser->role) && in_array(strtolower($authUser->role), ['superadmin', 'super']);
+
+        // Si es superadmin y provee user_id, listar los negocios de ese usuario
+        $targetUserId = $request->query('user_id') && $isSuperAdmin ? $request->query('user_id') : $authUser->id;
+
+        $businesses = Business::where('user_id', $targetUserId)->get();
+
+        // Calcular permiso para crear desde la perspectiva del requester
+        $canCreate = false;
+        if ($isSuperAdmin) {
+            $canCreate = true; // superadmin puede crear/gestionar para otros
+        } else {
+            $currentCount = Business::where('user_id', $authUser->id)->count();
+            $limit = $authUser->page_limit ?? 1;
+            // Si limit < 0 significa ilimitado
+            if ($limit < 0) {
+                $canCreate = true;
+            } else {
+                $canCreate = $currentCount < $limit;
+            }
+        }
+
+        return response()->json([
+            'data' => $businesses,
+            'permissions' => [
+                'can_create' => $canCreate,
+            ],
+        ]);
     }
 
     public function store(Request $request)
@@ -23,16 +52,27 @@ class BusinessController extends Controller
             'description' => 'nullable|string',
         ]);
 
-        // Verificar límite de páginas/negocios permitido para el usuario
-        $user = $request->user();
-        $currentCount = Business::where('user_id', $user->id)->count();
-        $limit = $user->page_limit ?? 1;
-        if ($currentCount >= $limit) {
-            return response()->json(['message' => 'Has alcanzado el límite de páginas/negocios permitidas'], 403);
+        $authUser = $request->user();
+        $isSuperAdmin = isset($authUser->role) && in_array(strtolower($authUser->role), ['superadmin', 'super']);
+
+        // Si el request incluye user_id y quien hace el request es superadmin, crear en nombre de ese usuario
+        $ownerId = $authUser->id;
+        if ($request->has('user_id') && $isSuperAdmin) {
+            $ownerId = $request->input('user_id');
+        }
+
+        // Para usuarios normales verificar el page_limit
+        if (! $isSuperAdmin) {
+            $currentCount = Business::where('user_id', $authUser->id)->count();
+            $limit = $authUser->page_limit ?? 1;
+            // Si el límite es negativo considerarlo ilimitado
+            if ($limit >= 0 && $currentCount >= $limit) {
+                return response()->json(['message' => 'Has alcanzado el límite de páginas/negocios permitidas'], 403);
+            }
         }
 
         $business = Business::create([
-            'user_id' => $user->id,
+            'user_id' => $ownerId,
             'name' => $request->name,
             'description' => $request->description,
         ]);
@@ -88,8 +128,16 @@ class BusinessController extends Controller
         $business = Business::with(['services', 'schedules', 'page.blocks'])
             ->findOrFail($id);
         
-        // Verificar que pertenece al usuario autenticado
-        if ($business->user_id !== auth()->id()) {
+        // Verificar que pertenece al usuario autenticado, salvo si es superadmin
+        $authUser = auth()->user();
+        $isSuperAdmin = isset($authUser->role) && in_array(strtolower($authUser->role), ['superadmin', 'super']);
+
+        // Si el propietario tiene page_limit == 0 y es el que intenta acceder, bloquear el acceso administrativo
+        if ($business->user_id === $authUser->id && ! $isSuperAdmin && ($authUser->page_limit ?? 1) === 0) {
+            return response()->json(['message' => 'Acceso bloqueado: tu cuenta no tiene permiso para gestionar páginas/negocios'], 403);
+        }
+
+        if ($business->user_id !== $authUser->id && ! $isSuperAdmin) {
             return response()->json(['message' => 'No autorizado'], 403);
         }
 
@@ -113,8 +161,16 @@ class BusinessController extends Controller
     {
         $business = Business::with('page.blocks')->findOrFail($id);
 
-        // Verificar que pertenece al usuario autenticado
-        if ($business->user_id !== auth()->id()) {
+        // Verificar que pertenece al usuario autenticado, salvo si es superadmin
+        $authUser = auth()->user();
+        $isSuperAdmin = isset($authUser->role) && in_array(strtolower($authUser->role), ['superadmin', 'super']);
+
+        // Bloquear eliminación si el propietario tiene page_limit == 0 (no permitir gestión)
+        if ($business->user_id === $authUser->id && ! $isSuperAdmin && ($authUser->page_limit ?? 1) === 0) {
+            return response()->json(['message' => 'Acceso bloqueado: tu cuenta no tiene permiso para gestionar páginas/negocios'], 403);
+        }
+
+        if ($business->user_id !== $authUser->id && ! $isSuperAdmin) {
             return response()->json(['message' => 'No autorizado'], 403);
         }
 

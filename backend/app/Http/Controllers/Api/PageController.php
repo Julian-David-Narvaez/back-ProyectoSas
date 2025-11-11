@@ -12,7 +12,15 @@ class PageController extends Controller
     {
         $business = Business::findOrFail($businessId);
         
-        if ($business->user_id !== auth()->id()) {
+        $authUser = auth()->user();
+        $isSuperAdmin = isset($authUser->role) && in_array(strtolower($authUser->role), ['superadmin', 'super']);
+
+        // Si es propietario pero su page_limit es 0, bloquear acceso administrativo (no eliminar páginas)
+        if ($business->user_id === $authUser->id && ! $isSuperAdmin && ($authUser->page_limit ?? 1) === 0) {
+            return response()->json(['message' => 'Acceso bloqueado: tu cuenta no tiene permiso para gestionar páginas'], 403);
+        }
+
+        if ($business->user_id !== $authUser->id && ! $isSuperAdmin) {
             return response()->json(['message' => 'No autorizado'], 403);
         }
 
@@ -23,8 +31,14 @@ class PageController extends Controller
     public function updateBlocks(Request $request, $businessId)
     {
         $business = Business::findOrFail($businessId);
-        
-        if ($business->user_id !== auth()->id()) {
+        $authUser = auth()->user();
+        $isSuperAdmin = isset($authUser->role) && in_array(strtolower($authUser->role), ['superadmin', 'super']);
+
+        if ($business->user_id === $authUser->id && ! $isSuperAdmin && ($authUser->page_limit ?? 1) === 0) {
+            return response()->json(['message' => 'Acceso bloqueado: tu cuenta no tiene permiso para gestionar páginas'], 403);
+        }
+
+        if ($business->user_id !== $authUser->id && ! $isSuperAdmin) {
             return response()->json(['message' => 'No autorizado'], 403);
         }
 
@@ -62,8 +76,14 @@ class PageController extends Controller
     public function deleteBlock($businessId, $blockId)
     {
         $business = Business::findOrFail($businessId);
-        
-        if ($business->user_id !== auth()->id()) {
+        $authUser = auth()->user();
+        $isSuperAdmin = isset($authUser->role) && in_array(strtolower($authUser->role), ['superadmin', 'super']);
+
+        if ($business->user_id === $authUser->id && ! $isSuperAdmin && ($authUser->page_limit ?? 1) === 0) {
+            return response()->json(['message' => 'Acceso bloqueado: tu cuenta no tiene permiso para gestionar páginas'], 403);
+        }
+
+        if ($business->user_id !== $authUser->id && ! $isSuperAdmin) {
             return response()->json(['message' => 'No autorizado'], 403);
         }
 

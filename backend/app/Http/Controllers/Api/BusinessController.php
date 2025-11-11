@@ -23,8 +23,16 @@ class BusinessController extends Controller
             'description' => 'nullable|string',
         ]);
 
+        // Verificar límite de páginas/negocios permitido para el usuario
+        $user = $request->user();
+        $currentCount = Business::where('user_id', $user->id)->count();
+        $limit = $user->page_limit ?? 1;
+        if ($currentCount >= $limit) {
+            return response()->json(['message' => 'Has alcanzado el límite de páginas/negocios permitidas'], 403);
+        }
+
         $business = Business::create([
-            'user_id' => $request->user()->id,
+            'user_id' => $user->id,
             'name' => $request->name,
             'description' => $request->description,
         ]);

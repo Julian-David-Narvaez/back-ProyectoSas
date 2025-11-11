@@ -48,6 +48,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/businesses/{businessId}/page/blocks', [PageController::class, 'updateBlocks']);
     Route::delete('/businesses/{businessId}/page/blocks/{blockId}', [PageController::class, 'deleteBlock']);
 
+    // Superadmin routes
+    Route::middleware('is_superadmin')->prefix('superadmin')->group(function () {
+        Route::get('/users', [\App\Http\Controllers\Api\SuperAdminController::class, 'index']);
+        Route::post('/users', [\App\Http\Controllers\Api\SuperAdminController::class, 'store']);
+        Route::put('/users/{id}/page_limit', [\App\Http\Controllers\Api\SuperAdminController::class, 'updatePageLimit']);
+        Route::delete('/users/{id}', [\App\Http\Controllers\Api\SuperAdminController::class, 'destroy']);
+    });
+
     // Bookings (Admin)
     Route::get('/businesses/{businessId}/bookings', [BookingController::class, 'index']);
     Route::put('/businesses/{businessId}/bookings/{bookingId}', [BookingController::class, 'update']);

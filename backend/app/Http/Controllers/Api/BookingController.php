@@ -39,17 +39,24 @@ class BookingController extends Controller
         $employeeId = $request->employee_id;
 
         // Obtener horario del día
-        $scheduleQuery = $business->schedules()->where('weekday', $weekday);
+        // Primero intentar buscar horario específico del empleado si se especifica
+        $schedule = null;
         
         if ($employeeId) {
-            // Si se especifica empleado, buscar su horario específico
-            $scheduleQuery->where('employee_id', $employeeId);
-        } else {
-            // Si no se especifica empleado, buscar horarios generales (sin empleado asignado)
-            $scheduleQuery->whereNull('employee_id');
+            // Buscar horario específico del empleado
+            $schedule = $business->schedules()
+                ->where('weekday', $weekday)
+                ->where('employee_id', $employeeId)
+                ->first();
         }
         
-        $schedule = $scheduleQuery->first();
+        // Si no se encontró horario específico (o no se especificó empleado), buscar horario general
+        if (!$schedule) {
+            $schedule = $business->schedules()
+                ->where('weekday', $weekday)
+                ->whereNull('employee_id')
+                ->first();
+        }
 
         if (!$schedule) {
             return response()->json([
@@ -65,20 +72,43 @@ class BookingController extends Controller
             $service->duration_minutes
         );
 
-        // Si el horario es general (sin empleado específico), verificar disponibilidad
-        // considerando todos los empleados activos
-        if (!$schedule->employee_id) {
-            // Obtener todos los empleados activos del negocio
+        // Determinar la lógica de disponibilidad según el caso
+        if ($employeeId) {
+            // Caso: Se seleccionó un empleado específico
+            // Verificar solo la disponibilidad de ese empleado
+            $existingBookings = Booking::where('business_id', $businessId)
+                ->whereDate('start_at', $date->format('Y-m-d'))
+                ->where('status', 'confirmed')
+                ->where('employee_id', $employeeId)
+                ->get();
+
+            $availableSlots = array_filter($slots, function($slot) use ($existingBookings, $date, $service) {
+                $slotStart = Carbon::parse($date->format('Y-m-d') . ' ' . $slot);
+                $slotEnd = $slotStart->copy()->addMinutes($service->duration_minutes);
+
+                foreach ($existingBookings as $booking) {
+                    $bookingStart = Carbon::parse($booking->start_at);
+                    $bookingEnd = Carbon::parse($booking->end_at);
+
+                    if ($slotStart < $bookingEnd && $slotEnd > $bookingStart) {
+                        return false;
+                    }
+                }
+
+                return true;
+            });
+        } else if (!$schedule->employee_id) {
+            // Caso: No se seleccionó empleado y el horario es general
+            // Verificar disponibilidad considerando todos los empleados activos
             $activeEmployees = $business->employees()->where('is_active', true)->get();
             $employeeCount = $activeEmployees->count();
             
             if ($employeeCount === 0) {
                 // Si no hay empleados, verificar solo que no haya reservas en ese horario general
-                $bookingQuery = Booking::where('business_id', $businessId)
+                $existingBookings = Booking::where('business_id', $businessId)
                     ->whereDate('start_at', $date->format('Y-m-d'))
-                    ->where('status', 'confirmed');
-                
-                $existingBookings = $bookingQuery->get();
+                    ->where('status', 'confirmed')
+                    ->get();
             } else {
                 // Si hay empleados, verificar que al menos uno esté disponible en cada slot
                 $existingBookings = Booking::where('business_id', $businessId)
@@ -88,7 +118,7 @@ class BookingController extends Controller
             }
 
             // Filtrar slots: un slot está disponible si hay al menos un empleado libre
-            $availableSlots = array_filter($slots, function($slot) use ($existingBookings, $date, $service, $employeeCount, $activeEmployees) {
+            $availableSlots = array_filter($slots, function($slot) use ($existingBookings, $date, $service, $employeeCount) {
                 $slotStart = Carbon::parse($date->format('Y-m-d') . ' ' . $slot);
                 $slotEnd = $slotStart->copy()->addMinutes($service->duration_minutes);
 
@@ -120,15 +150,14 @@ class BookingController extends Controller
                 }
             });
         } else {
-            // Horario específico de un empleado: lógica original
-            $bookingQuery = Booking::where('business_id', $businessId)
+            // Caso: No se seleccionó empleado pero el horario es específico de un empleado
+            // (Este caso no debería ocurrir normalmente, pero por seguridad)
+            $existingBookings = Booking::where('business_id', $businessId)
                 ->whereDate('start_at', $date->format('Y-m-d'))
                 ->where('status', 'confirmed')
-                ->where('employee_id', $employeeId);
-            
-            $existingBookings = $bookingQuery->get();
+                ->where('employee_id', $schedule->employee_id)
+                ->get();
 
-            // Filtrar slots ocupados
             $availableSlots = array_filter($slots, function($slot) use ($existingBookings, $date, $service) {
                 $slotStart = Carbon::parse($date->format('Y-m-d') . ' ' . $slot);
                 $slotEnd = $slotStart->copy()->addMinutes($service->duration_minutes);
@@ -137,7 +166,6 @@ class BookingController extends Controller
                     $bookingStart = Carbon::parse($booking->start_at);
                     $bookingEnd = Carbon::parse($booking->end_at);
 
-                    // Verificar conflicto: si hay overlap
                     if ($slotStart < $bookingEnd && $slotEnd > $bookingStart) {
                         return false;
                     }
@@ -189,46 +217,48 @@ class BookingController extends Controller
     $endAt = $startAt->copy()->addMinutes($service->duration_minutes);
     $weekday = $startAt->dayOfWeek;
 
-    // Verificar si el horario es general (sin empleado específico)
-    $schedule = Schedule::where('business_id', $request->business_id)
-        ->where('weekday', $weekday)
-        ->whereNull('employee_id')
-        ->first();
-
     $assignedEmployeeId = $request->employee_id;
 
-    // Si es horario general y no se especificó empleado, buscar uno disponible
-    if ($schedule && !$assignedEmployeeId) {
-        $activeEmployees = $business->employees()->where('is_active', true)->pluck('id')->toArray();
-        
-        if (count($activeEmployees) > 0) {
-            // Buscar un empleado disponible en este horario
-            foreach ($activeEmployees as $empId) {
-                $hasConflict = Booking::where('business_id', $request->business_id)
-                    ->where('employee_id', $empId)
-                    ->where('status', 'confirmed')
-                    ->where(function($query) use ($startAt, $endAt) {
-                        $query->where(function($q) use ($startAt, $endAt) {
-                            $q->where('start_at', '<', $endAt)
-                              ->where('end_at', '>', $startAt);
-                        });
-                    })
-                    ->exists();
-                
-                if (!$hasConflict) {
-                    $assignedEmployeeId = $empId;
-                    break;
+    // Si NO se especificó empleado, verificar si hay horario general y asignar empleado disponible
+    if (!$assignedEmployeeId) {
+        // Verificar si el horario es general (sin empleado específico)
+        $schedule = Schedule::where('business_id', $request->business_id)
+            ->where('weekday', $weekday)
+            ->whereNull('employee_id')
+            ->first();
+
+        if ($schedule) {
+            $activeEmployees = $business->employees()->where('is_active', true)->pluck('id')->toArray();
+            
+            if (count($activeEmployees) > 0) {
+                // Buscar un empleado disponible en este horario
+                foreach ($activeEmployees as $empId) {
+                    $hasConflict = Booking::where('business_id', $request->business_id)
+                        ->where('employee_id', $empId)
+                        ->where('status', 'confirmed')
+                        ->where(function($query) use ($startAt, $endAt) {
+                            $query->where(function($q) use ($startAt, $endAt) {
+                                $q->where('start_at', '<', $endAt)
+                                  ->where('end_at', '>', $startAt);
+                            });
+                        })
+                        ->exists();
+                    
+                    if (!$hasConflict) {
+                        $assignedEmployeeId = $empId;
+                        break;
+                    }
+                }
+
+                // Si todos los empleados están ocupados
+                if (!$assignedEmployeeId) {
+                    return response()->json([
+                        'message' => 'Este horario ya no está disponible. Todos los empleados están ocupados.'
+                    ], 409);
                 }
             }
-
-            // Si todos los empleados están ocupados
-            if (!$assignedEmployeeId) {
-                return response()->json([
-                    'message' => 'Este horario ya no está disponible. Todos los empleados están ocupados.'
-                ], 409);
-            }
+            // Si no hay empleados activos, se permite la reserva sin empleado
         }
-        // Si no hay empleados activos, se permite la reserva sin empleado
     }
 
     // Log para debug

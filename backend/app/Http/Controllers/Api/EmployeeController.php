@@ -44,11 +44,19 @@ class EmployeeController extends Controller
      */
     public function store(Request $request, $businessId)
     {
-        $business = Business::findOrFail($businessId);
+        $business = Business::with('page')->findOrFail($businessId);
         
+        $authUser = auth()->user();
+        $isSuperAdmin = isset($authUser->role) && in_array(strtolower($authUser->role), ['superadmin', 'super']);
+
         // Verificar que el usuario sea dueño del negocio
-        if (auth()->user()->id !== $business->user_id && !auth()->user()->is_superadmin) {
+        if ($authUser->id !== $business->user_id && !$isSuperAdmin) {
             return response()->json(['message' => 'No autorizado'], 403);
+        }
+
+        // Verificar si la página está activa (no aplica para superadmins)
+        if (!$isSuperAdmin && $business->page && !$business->page->is_active) {
+            return response()->json(['message' => 'No puedes crear empleados porque esta página está deshabilitada'], 403);
         }
 
         $validated = $request->validate([
@@ -86,11 +94,19 @@ class EmployeeController extends Controller
      */
     public function update(Request $request, $businessId, $employeeId)
     {
-        $business = Business::findOrFail($businessId);
+        $business = Business::with('page')->findOrFail($businessId);
         
+        $authUser = auth()->user();
+        $isSuperAdmin = isset($authUser->role) && in_array(strtolower($authUser->role), ['superadmin', 'super']);
+
         // Verificar que el usuario sea dueño del negocio
-        if (auth()->user()->id !== $business->user_id && !auth()->user()->is_superadmin) {
+        if ($authUser->id !== $business->user_id && !$isSuperAdmin) {
             return response()->json(['message' => 'No autorizado'], 403);
+        }
+
+        // Verificar si la página está activa (no aplica para superadmins)
+        if (!$isSuperAdmin && $business->page && !$business->page->is_active) {
+            return response()->json(['message' => 'No puedes editar empleados porque esta página está deshabilitada'], 403);
         }
 
         $employee = Employee::where('business_id', $businessId)
@@ -115,11 +131,19 @@ class EmployeeController extends Controller
      */
     public function destroy($businessId, $employeeId)
     {
-        $business = Business::findOrFail($businessId);
+        $business = Business::with('page')->findOrFail($businessId);
         
+        $authUser = auth()->user();
+        $isSuperAdmin = isset($authUser->role) && in_array(strtolower($authUser->role), ['superadmin', 'super']);
+
         // Verificar que el usuario sea dueño del negocio
-        if (auth()->user()->id !== $business->user_id && !auth()->user()->is_superadmin) {
+        if ($authUser->id !== $business->user_id && !$isSuperAdmin) {
             return response()->json(['message' => 'No autorizado'], 403);
+        }
+
+        // Verificar si la página está activa (no aplica para superadmins)
+        if (!$isSuperAdmin && $business->page && !$business->page->is_active) {
+            return response()->json(['message' => 'No puedes eliminar empleados porque esta página está deshabilitada'], 403);
         }
 
         $employee = Employee::where('business_id', $businessId)

@@ -23,10 +23,18 @@ class ServiceController extends Controller
 
     public function store(Request $request, $businessId)
     {
-        $business = Business::findOrFail($businessId);
+        $business = Business::with('page')->findOrFail($businessId);
         
-        if ($business->user_id !== auth()->id()) {
+        $authUser = auth()->user();
+        $isSuperAdmin = isset($authUser->role) && in_array(strtolower($authUser->role), ['superadmin', 'super']);
+
+        if ($business->user_id !== $authUser->id && !$isSuperAdmin) {
             return response()->json(['message' => 'No autorizado'], 403);
+        }
+
+        // Verificar si la página está activa (no aplica para superadmins)
+        if (!$isSuperAdmin && $business->page && !$business->page->is_active) {
+            return response()->json(['message' => 'No puedes crear servicios porque esta página está deshabilitada'], 403);
         }
 
         $request->validate([
@@ -49,10 +57,18 @@ class ServiceController extends Controller
 
     public function update(Request $request, $businessId, $serviceId)
     {
-        $business = Business::findOrFail($businessId);
+        $business = Business::with('page')->findOrFail($businessId);
         
-        if ($business->user_id !== auth()->id()) {
+        $authUser = auth()->user();
+        $isSuperAdmin = isset($authUser->role) && in_array(strtolower($authUser->role), ['superadmin', 'super']);
+
+        if ($business->user_id !== $authUser->id && !$isSuperAdmin) {
             return response()->json(['message' => 'No autorizado'], 403);
+        }
+
+        // Verificar si la página está activa (no aplica para superadmins)
+        if (!$isSuperAdmin && $business->page && !$business->page->is_active) {
+            return response()->json(['message' => 'No puedes editar servicios porque esta página está deshabilitada'], 403);
         }
 
         $service = Service::where('business_id', $businessId)
@@ -73,10 +89,18 @@ class ServiceController extends Controller
 
     public function destroy($businessId, $serviceId)
     {
-        $business = Business::findOrFail($businessId);
+        $business = Business::with('page')->findOrFail($businessId);
         
-        if ($business->user_id !== auth()->id()) {
+        $authUser = auth()->user();
+        $isSuperAdmin = isset($authUser->role) && in_array(strtolower($authUser->role), ['superadmin', 'super']);
+
+        if ($business->user_id !== $authUser->id && !$isSuperAdmin) {
             return response()->json(['message' => 'No autorizado'], 403);
+        }
+
+        // Verificar si la página está activa (no aplica para superadmins)
+        if (!$isSuperAdmin && $business->page && !$business->page->is_active) {
+            return response()->json(['message' => 'No puedes eliminar servicios porque esta página está deshabilitada'], 403);
         }
 
         $service = Service::where('business_id', $businessId)

@@ -30,7 +30,7 @@ class PageController extends Controller
 
     public function updateBlocks(Request $request, $businessId)
     {
-        $business = Business::findOrFail($businessId);
+        $business = Business::with('page')->findOrFail($businessId);
         $authUser = auth()->user();
         $isSuperAdmin = isset($authUser->role) && in_array(strtolower($authUser->role), ['superadmin', 'super']);
 
@@ -40,6 +40,11 @@ class PageController extends Controller
 
         if ($business->user_id !== $authUser->id && ! $isSuperAdmin) {
             return response()->json(['message' => 'No autorizado'], 403);
+        }
+
+        // Verificar si la página está activa
+        if ($business->page && !$business->page->is_active && !$isSuperAdmin) {
+            return response()->json(['message' => 'No puedes editar esta página porque está deshabilitada'], 403);
         }
 
         $request->validate([
@@ -75,7 +80,7 @@ class PageController extends Controller
 
     public function deleteBlock($businessId, $blockId)
     {
-        $business = Business::findOrFail($businessId);
+        $business = Business::with('page')->findOrFail($businessId);
         $authUser = auth()->user();
         $isSuperAdmin = isset($authUser->role) && in_array(strtolower($authUser->role), ['superadmin', 'super']);
 
@@ -85,6 +90,11 @@ class PageController extends Controller
 
         if ($business->user_id !== $authUser->id && ! $isSuperAdmin) {
             return response()->json(['message' => 'No autorizado'], 403);
+        }
+
+        // Verificar si la página está activa
+        if ($business->page && !$business->page->is_active && !$isSuperAdmin) {
+            return response()->json(['message' => 'No puedes eliminar bloques porque esta página está deshabilitada'], 403);
         }
 
         $page = $business->page()->firstOrFail();

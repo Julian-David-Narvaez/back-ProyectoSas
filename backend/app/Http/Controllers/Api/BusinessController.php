@@ -20,7 +20,7 @@ class BusinessController extends Controller
         // Si es superadmin y provee user_id, listar los negocios de ese usuario
         $targetUserId = $request->query('user_id') && $isSuperAdmin ? $request->query('user_id') : $authUser->id;
 
-        $businesses = Business::where('user_id', $targetUserId)->get();
+        $businesses = Business::with('page:id,business_id,is_active')->where('user_id', $targetUserId)->get();
 
         // Calcular permiso para crear desde la perspectiva del requester
         $canCreate = false;
@@ -68,6 +68,17 @@ class BusinessController extends Controller
             // Si el límite es negativo considerarlo ilimitado
             if ($limit >= 0 && $currentCount >= $limit) {
                 return response()->json(['message' => 'Has alcanzado el límite de páginas/negocios permitidas'], 403);
+            }
+
+            // Verificar si todas las páginas del usuario están deshabilitadas
+            $hasActivePages = DB::table('businesses')
+                ->join('pages', 'businesses.id', '=', 'pages.business_id')
+                ->where('businesses.user_id', $authUser->id)
+                ->where('pages.is_active', true)
+                ->exists();
+
+            if ($currentCount > 0 && !$hasActivePages) {
+                return response()->json(['message' => 'No puedes crear nuevas páginas porque todas tus páginas están deshabilitadas'], 403);
             }
         }
 
@@ -153,6 +164,11 @@ class BusinessController extends Controller
         }])
             ->where('slug', $slug)
             ->firstOrFail();
+
+        // Verificar que la página esté activa
+        if ($business->page && !$business->page->is_active) {
+            return response()->json(['message' => 'Esta página no está disponible en este momento'], 403);
+        }
 
         return response()->json($business);
     }

@@ -15,13 +15,14 @@ class AuthController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:8|confirmed',
+            'role' => 'nullable|in:client,superadmin',
         ]);
 
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
-            'role' => 'client',
+            'role' => $request->role ?? 'client',
         ]);
 
         return response()->json([
@@ -40,17 +41,26 @@ class AuthController extends Controller
         $user = User::where('email', $request->email)->first();
 
         if (!$user || !Hash::check($request->password, $user->password)) {
-            throw ValidationException::withMessages([
-                'email' => ['Las credenciales son incorrectas.'],
-            ]);
+            return response()->json([
+                'message' => 'Las credenciales son incorrectas.'
+            ], 401);
         }
 
+        // Revocar tokens anteriores para evitar problemas
+        $user->tokens()->delete();
+        
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
             'access_token' => $token,
             'token_type' => 'Bearer',
-            'user' => $user
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'role' => $user->role,
+                'page_limit' => $user->page_limit,
+            ]
         ]);
     }
 

@@ -6,10 +6,11 @@ use Illuminate\Database\Eloquent\Model;
 
 class Page extends Model
 {
-    protected $fillable = ['business_id', 'template', 'metadata'];
+    protected $fillable = ['business_id', 'template', 'metadata', 'is_active'];
 
     protected $casts = [
         'metadata' => 'array',
+        'is_active' => 'boolean',
     ];
 
     public function business()

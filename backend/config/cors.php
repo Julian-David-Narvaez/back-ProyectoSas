@@ -55,6 +55,6 @@ return [
     | Supports Credentials
     |--------------------------------------------------------------------------
     */
-    'supports_credentials' => true,
+    'supports_credentials' => false,
 
 ];

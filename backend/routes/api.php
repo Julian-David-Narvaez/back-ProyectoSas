@@ -64,6 +64,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/users', [\App\Http\Controllers\Api\SuperAdminController::class, 'store']);
         Route::put('/users/{id}/page_limit', [\App\Http\Controllers\Api\SuperAdminController::class, 'updatePageLimit']);
         Route::delete('/users/{id}', [\App\Http\Controllers\Api\SuperAdminController::class, 'destroy']);
+        
+        // Pages management
+        Route::get('/pages', [\App\Http\Controllers\Api\SuperAdminController::class, 'listPages']);
+        Route::post('/pages/toggle', [\App\Http\Controllers\Api\SuperAdminController::class, 'togglePages']);
+        Route::post('/users/{userId}/pages/disable', [\App\Http\Controllers\Api\SuperAdminController::class, 'disableUserPages']);
+        Route::post('/users/{userId}/pages/enable', [\App\Http\Controllers\Api\SuperAdminController::class, 'enableUserPages']);
     });
 
     // Bookings (Admin)

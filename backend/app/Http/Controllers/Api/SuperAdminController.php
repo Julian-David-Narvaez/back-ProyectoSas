@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use App\Models\User;
 use App\Models\Business;
 use App\Models\Booking;
+use App\Models\Page;
 use Illuminate\Support\Facades\DB;
 
 class SuperAdminController extends Controller
@@ -85,5 +86,74 @@ class SuperAdminController extends Controller
             DB::rollBack();
             return response()->json(['message' => 'Error al eliminar usuario', 'error' => $e->getMessage()], 500);
         }
+    }
+
+    // Listar todas las páginas con información del usuario y negocio
+    public function listPages()
+    {
+        $pages = Page::with(['business.user:id,name,email'])
+            ->select('id', 'business_id', 'template', 'is_active', 'created_at')
+            ->get()
+            ->map(function ($page) {
+                return [
+                    'id' => $page->id,
+                    'business_id' => $page->business_id,
+                    'business_name' => $page->business->name ?? 'N/A',
+                    'business_slug' => $page->business->slug ?? 'N/A',
+                    'user_id' => $page->business->user->id ?? null,
+                    'user_name' => $page->business->user->name ?? 'N/A',
+                    'user_email' => $page->business->user->email ?? 'N/A',
+                    'template' => $page->template,
+                    'is_active' => $page->is_active,
+                    'created_at' => $page->created_at,
+                ];
+            });
+
+        return response()->json($pages);
+    }
+
+    // Cambiar el estado de una o varias páginas
+    public function togglePages(Request $request)
+    {
+        $request->validate([
+            'page_ids' => 'required|array',
+            'page_ids.*' => 'exists:pages,id',
+            'is_active' => 'required|boolean',
+        ]);
+
+        Page::whereIn('id', $request->page_ids)->update(['is_active' => $request->is_active]);
+
+        return response()->json([
+            'message' => 'Estado de páginas actualizado correctamente',
+            'count' => count($request->page_ids)
+        ]);
+    }
+
+    // Deshabilitar todas las páginas de un usuario
+    public function disableUserPages(Request $request, $userId)
+    {
+        $user = User::findOrFail($userId);
+        
+        $businessIds = Business::where('user_id', $userId)->pluck('id');
+        $count = Page::whereIn('business_id', $businessIds)->update(['is_active' => false]);
+
+        return response()->json([
+            'message' => 'Todas las páginas del usuario han sido deshabilitadas',
+            'count' => $count
+        ]);
+    }
+
+    // Habilitar todas las páginas de un usuario
+    public function enableUserPages(Request $request, $userId)
+    {
+        $user = User::findOrFail($userId);
+        
+        $businessIds = Business::where('user_id', $userId)->pluck('id');
+        $count = Page::whereIn('business_id', $businessIds)->update(['is_active' => true]);
+
+        return response()->json([
+            'message' => 'Todas las páginas del usuario han sido habilitadas',
+            'count' => $count
+        ]);
     }
 }

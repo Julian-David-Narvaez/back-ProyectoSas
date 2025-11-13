@@ -21,6 +21,7 @@ class BookingController extends Controller
     {
         $request->validate([
             'service_id' => 'required|exists:services,id',
+            'employee_id' => 'nullable|exists:employees,id',
             'date' => 'required|date|after_or_equal:today',
         ]);
 
@@ -34,9 +35,20 @@ class BookingController extends Controller
 
         $date = Carbon::parse($request->date);
         $weekday = $date->dayOfWeek; // 0 = Domingo, 6 = Sábado
+        $employeeId = $request->employee_id;
 
-        // Obtener horario del día
-        $schedule = $business->schedules()->where('weekday', $weekday)->first();
+        // Obtener horario del día (filtrar por empleado si se especifica)
+        $scheduleQuery = $business->schedules()->where('weekday', $weekday);
+        
+        if ($employeeId) {
+            // Si se especifica empleado, buscar su horario específico
+            $scheduleQuery->where('employee_id', $employeeId);
+        } else {
+            // Si no se especifica empleado, buscar horarios generales (sin empleado asignado)
+            $scheduleQuery->whereNull('employee_id');
+        }
+        
+        $schedule = $scheduleQuery->first();
 
         if (!$schedule) {
             return response()->json([
@@ -52,11 +64,16 @@ class BookingController extends Controller
             $service->duration_minutes
         );
 
-        // Obtener reservas existentes para ese día
-        $existingBookings = Booking::where('business_id', $businessId)
+        // Obtener reservas existentes para ese día (filtrar por empleado si se especifica)
+        $bookingQuery = Booking::where('business_id', $businessId)
             ->whereDate('start_at', $date->format('Y-m-d'))
-            ->where('status', 'confirmed')
-            ->get();
+            ->where('status', 'confirmed');
+            
+        if ($employeeId) {
+            $bookingQuery->where('employee_id', $employeeId);
+        }
+        
+        $existingBookings = $bookingQuery->get();
 
         // Filtrar slots ocupados
         $availableSlots = array_filter($slots, function($slot) use ($existingBookings, $date, $service) {
@@ -93,6 +110,7 @@ class BookingController extends Controller
         $request->validate([
         'business_id' => 'required|exists:businesses,id',
         'service_id' => 'required|exists:services,id',
+        'employee_id' => 'nullable|exists:employees,id',
         'customer_name' => 'required|string|max:255|min:3',
         'customer_email' => 'required|email|max:255',
         'date' => 'required|date|after_or_equal:today',
@@ -118,20 +136,26 @@ class BookingController extends Controller
     Log::info('Creando reserva', [
         'date' => $request->date,
         'time' => $request->time,
+        'employee_id' => $request->employee_id,
         'start_at' => $startAt->toDateTimeString(),
         'end_at' => $endAt->toDateTimeString(),
     ]);
 
-    // Verificar disponibilidad
-    $conflict = Booking::where('business_id', $request->business_id)
+    // Verificar disponibilidad (considerar empleado si se especifica)
+    $conflictQuery = Booking::where('business_id', $request->business_id)
         ->where('status', 'confirmed')
         ->where(function($query) use ($startAt, $endAt) {
             $query->where(function($q) use ($startAt, $endAt) {
                 $q->where('start_at', '<', $endAt)
                   ->where('end_at', '>', $startAt);
             });
-        })
-        ->exists();
+        });
+    
+    if ($request->employee_id) {
+        $conflictQuery->where('employee_id', $request->employee_id);
+    }
+    
+    $conflict = $conflictQuery->exists();
 
     if ($conflict) {
         return response()->json([
@@ -142,6 +166,7 @@ class BookingController extends Controller
     $booking = Booking::create([
         'business_id' => $request->business_id,
         'service_id' => $service->id,
+        'employee_id' => $request->employee_id,
         'user_id' => auth()->id(), // Puede ser null para clientes sin cuenta
         'customer_name' => $request->customer_name,
         'customer_email' => $request->customer_email,
@@ -173,7 +198,7 @@ class BookingController extends Controller
 
             return response()->json([
                 'message' => 'Reserva creada exitosamente',
-                'booking' => $booking->load('service')
+                'booking' => $booking->load(['service', 'employee'])
             ], 201);
         }
 
@@ -188,7 +213,7 @@ class BookingController extends Controller
             return response()->json(['message' => 'No autorizado'], 403);
         }
 
-        $bookings = Booking::with('service')
+        $bookings = Booking::with(['service', 'employee'])
             ->where('business_id', $businessId)
             ->orderBy('start_at', 'desc')
             ->get();

@@ -17,7 +17,7 @@ class ScheduleController extends Controller
             return response()->json(['message' => 'No autorizado'], 403);
         }
 
-        $schedules = $business->schedules()->orderBy('weekday')->get();
+        $schedules = $business->schedules()->with('employee')->orderBy('weekday')->get();
         return response()->json($schedules);
     }
 
@@ -30,14 +30,18 @@ class ScheduleController extends Controller
         }
 
         $request->validate([
+            'employee_id' => 'nullable|exists:employees,id',
             'weekday' => 'required|integer|min:0|max:6',
             'start_time' => 'required|date_format:H:i',
             'end_time' => 'required|date_format:H:i|after:start_time',
         ]);
 
-        $schedule = $business->schedules()->create($request->all());
+        $data = $request->all();
+        $data['business_id'] = $businessId;
 
-        return response()->json($schedule, 201);
+        $schedule = Schedule::create($data);
+
+        return response()->json($schedule->load('employee'), 201);
     }
 
     public function update(Request $request, $businessId, $scheduleId)
@@ -52,6 +56,7 @@ class ScheduleController extends Controller
             ->findOrFail($scheduleId);
 
         $request->validate([
+            'employee_id' => 'nullable|exists:employees,id',
             'weekday' => 'sometimes|integer|min:0|max:6',
             'start_time' => 'sometimes|date_format:H:i',
             'end_time' => 'sometimes|date_format:H:i|after:start_time',
@@ -59,7 +64,7 @@ class ScheduleController extends Controller
 
         $schedule->update($request->all());
 
-        return response()->json($schedule);
+        return response()->json($schedule->load('employee'));
     }
 
     public function destroy($businessId, $scheduleId)

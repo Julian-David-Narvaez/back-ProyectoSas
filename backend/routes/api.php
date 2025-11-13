@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\ServiceController;
 use App\Http\Controllers\Api\ScheduleController;
 use App\Http\Controllers\Api\PageController;
 use App\Http\Controllers\Api\BookingController;
+use App\Http\Controllers\Api\EmployeeController;
 
 // Autenticación
 Route::post('/register', [AuthController::class, 'register']);
@@ -15,6 +16,8 @@ Route::post('/login', [AuthController::class, 'login']);
 
 // Rutas públicas
 Route::get('/businesses/slug/{slug}', [BusinessController::class, 'showBySlug']);
+Route::get('/businesses/{businessId}/employees', [EmployeeController::class, 'publicIndex']);
+Route::get('/businesses/{businessId}/employees/{employeeId}/availability', [EmployeeController::class, 'getAvailability']);
 Route::get('/businesses/{businessId}/availability', [BookingController::class, 'getAvailability']);
 Route::post('/bookings', [BookingController::class, 'store']);
 
@@ -42,6 +45,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/businesses/{businessId}/schedules', [ScheduleController::class, 'store']);
     Route::put('/businesses/{businessId}/schedules/{scheduleId}', [ScheduleController::class, 'update']);
     Route::delete('/businesses/{businessId}/schedules/{scheduleId}', [ScheduleController::class, 'destroy']);
+
+    // Employees
+    Route::get('/businesses/{businessId}/employees/admin', [EmployeeController::class, 'index']);
+    Route::post('/businesses/{businessId}/employees', [EmployeeController::class, 'store']);
+    Route::get('/businesses/{businessId}/employees/{employeeId}', [EmployeeController::class, 'show']);
+    Route::put('/businesses/{businessId}/employees/{employeeId}', [EmployeeController::class, 'update']);
+    Route::delete('/businesses/{businessId}/employees/{employeeId}', [EmployeeController::class, 'destroy']);
 
     // Page Builder
     Route::get('/businesses/{businessId}/page', [PageController::class, 'show']);

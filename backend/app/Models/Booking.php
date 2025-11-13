@@ -10,6 +10,7 @@ class Booking extends Model
     protected $fillable = [
         'business_id',
         'service_id',
+        'employee_id',
         'user_id',
         'customer_name',
         'customer_email',
@@ -34,6 +35,11 @@ class Booking extends Model
     public function service()
     {
         return $this->belongsTo(Service::class);
+    }
+
+    public function employee()
+    {
+        return $this->belongsTo(Employee::class);
     }
 
     public function user()

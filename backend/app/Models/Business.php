@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\Service;
 use App\Models\Schedule;
 use App\Models\Page;
+use App\Models\Employee;
 
 class Business extends Model
 {
@@ -41,6 +42,11 @@ class Business extends Model
     public function schedules()
     {
         return $this->hasMany(Schedule::class);
+    }
+
+    public function employees()
+    {
+        return $this->hasMany(Employee::class)->orderBy('order');
     }
 
     public function page()

@@ -21,7 +21,7 @@ class BookingConfirmationMail extends Mailable
     public function __construct($booking)
     {
         // IMPORTANTE: Cargar las relaciones necesarias
-        $this->booking = $booking->load('service.business');
+        $this->booking = $booking->load('service.business', 'employee');
     }
 
     /**

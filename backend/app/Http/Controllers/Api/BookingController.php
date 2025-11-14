@@ -304,20 +304,20 @@ class BookingController extends Controller
         'status' => 'confirmed',
     ]);
 
-    // Enviar correo de confirmación
+    // Enviar correo de confirmación a través de cola
         try {
-            Log::info('Intentando enviar correo de confirmación', [
+            Log::info('Encolando correo de confirmación', [
                 'booking_id' => $booking->id,
                 'email' => $booking->customer_email,
             ]);
             
-            Mail::to($booking->customer_email)->send(new BookingConfirmationMail($booking));
+            Mail::to($booking->customer_email)->queue(new BookingConfirmationMail($booking));
             
-            Log::info('Correo enviado exitosamente', [
+            Log::info('Correo encolado exitosamente', [
                 'booking_id' => $booking->id,
             ]);
         } catch (\Exception $e) {
-            Log::error('Error enviando correo de confirmación de reserva', [
+            Log::error('Error encolando correo de confirmación de reserva', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
                 'booking_id' => $booking->id,

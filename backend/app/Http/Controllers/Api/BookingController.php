@@ -12,6 +12,7 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\BookingConfirmationMail;
+use App\Services\ResendMailService;
 
 class BookingController extends Controller
 {
@@ -304,25 +305,50 @@ class BookingController extends Controller
         'status' => 'confirmed',
     ]);
 
-    // Enviar correo de confirmación a través de cola
+    // Enviar correo de confirmación (inmediato)
         try {
-            Log::info('Encolando correo de confirmación', [
+            Log::info('Enviando correo de confirmación', [
                 'booking_id' => $booking->id,
                 'email' => $booking->customer_email,
             ]);
             
-            Mail::to($booking->customer_email)->queue(new BookingConfirmationMail($booking));
+            // Cargar relaciones necesarias para el correo
+            $booking->load('service.business', 'employee');
             
-            Log::info('Correo encolado exitosamente', [
-                'booking_id' => $booking->id,
-            ]);
+            // Intentar envío con Laravel Mail primero
+            try {
+                Mail::to($booking->customer_email)->send(new BookingConfirmationMail($booking));
+                Log::info('Correo enviado exitosamente con Laravel Mail', [
+                    'booking_id' => $booking->id,
+                ]);
+            } catch (\Exception $mailException) {
+                Log::warning('Fallo Laravel Mail, intentando con ResendMailService', [
+                    'error' => $mailException->getMessage(),
+                    'booking_id' => $booking->id,
+                ]);
+                
+                // Backup: usar ResendMailService directamente
+                $resendService = app(ResendMailService::class);
+                $result = $resendService->sendBookingConfirmation($booking);
+                
+                if (!$result['success']) {
+                    throw new \Exception('Error con ResendMailService: ' . $result['error']);
+                }
+                
+                Log::info('Correo enviado exitosamente con ResendMailService', [
+                    'booking_id' => $booking->id,
+                    'resend_id' => $result['id'] ?? null,
+                ]);
+            }
+            
         } catch (\Exception $e) {
-            Log::error('Error encolando correo de confirmación de reserva', [
+            Log::error('Error enviando correo de confirmación de reserva', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
                 'booking_id' => $booking->id,
                 'customer_email' => $booking->customer_email,
             ]);
+            // No fallar la creación de la reserva por error en correo
         }
 
             return response()->json([

@@ -3,13 +3,12 @@
 namespace App\Mail;
 
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
-class BookingConfirmationMail extends Mailable implements ShouldQueue
+class BookingConfirmationMail extends Mailable
 {
     use Queueable, SerializesModels;
 
@@ -41,7 +40,7 @@ class BookingConfirmationMail extends Mailable implements ShouldQueue
     public function content(): Content
     {
         return new Content(
-            html: $this->generateHtmlContent(),
+            htmlString: $this->generateHtmlContent(),
         );
     }
 
@@ -53,8 +52,8 @@ class BookingConfirmationMail extends Mailable implements ShouldQueue
         $businessName = $this->booking->service->business->name ?? 'Sistema de Citas';
         $serviceName = $this->booking->service->name ?? 'Servicio';
         $employeeName = $this->booking->employee->name ?? 'Personal';
-        $date = $this->booking->booking_date;
-        $time = $this->booking->booking_time;
+        $date = \Carbon\Carbon::parse($this->booking->start_at)->format('Y-m-d');
+        $time = \Carbon\Carbon::parse($this->booking->start_at)->format('H:i');
         
         return "
         <html>

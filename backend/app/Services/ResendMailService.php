@@ -65,7 +65,7 @@ class ResendMailService
      */
     public function sendBookingConfirmation($booking, $recipientEmail = null): array
     {
-        $email = $recipientEmail ?? $booking->email;
+        $email = $recipientEmail ?? $booking->customer_email;
         
         return $this->sendEmail([
             'to' => [$email],
@@ -141,8 +141,8 @@ class ResendMailService
         $businessName = $booking->service->business->name ?? 'Sistema de Citas';
         $serviceName = $booking->service->name ?? 'Servicio';
         $employeeName = $booking->employee->name ?? 'Personal';
-        $date = $booking->booking_date;
-        $time = $booking->booking_time;
+        $date = \Carbon\Carbon::parse($booking->start_at)->format('Y-m-d');
+        $time = \Carbon\Carbon::parse($booking->start_at)->format('H:i');
         
         return "
         <html>

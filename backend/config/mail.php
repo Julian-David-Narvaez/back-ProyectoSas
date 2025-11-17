@@ -94,6 +94,15 @@ return [
                 'postmark',
             ],
         ],
+
+        'resend' => [
+            'transport' => 'smtp',
+            'host' => 'smtp.resend.com',
+            'port' => 587,
+            'encryption' => 'tls',
+            'username' => 'resend',
+            'password' => env('RESEND_API_KEY'),
+        ],
     ],
 
     /*

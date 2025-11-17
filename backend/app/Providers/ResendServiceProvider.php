@@ -19,7 +19,7 @@ class ResendServiceProvider extends ServiceProvider
                 throw new \InvalidArgumentException('Resend API key not configured');
             }
             
-            return new ResendClient($apiKey);
+            return \Resend::client($apiKey);
         });
         
         // Alias para facilitar el uso

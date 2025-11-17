@@ -281,17 +281,23 @@ class BookingController extends Controller
             });
         });
     
-    if ($assignedEmployeeId) {
-        $conflictQuery->where('employee_id', $assignedEmployeeId);
-    }
-    
-    $conflict = $conflictQuery->exists();
-
-    if ($conflict) {
-        return response()->json([
-            'message' => 'Este horario ya no está disponible'
-        ], 409);
-    }
+        if ($assignedEmployeeId) {
+            // Solo validar conflicto para el empleado asignado
+            $conflict = $conflictQuery->where('employee_id', $assignedEmployeeId)->exists();
+            if ($conflict) {
+                return response()->json([
+                    'message' => 'Este horario ya no está disponible'
+                ], 409);
+            }
+        } else {
+            // Si no hay empleado asignado, verificar que no haya reservas sin empleado en ese slot
+            $conflict = $conflictQuery->whereNull('employee_id')->exists();
+            if ($conflict) {
+                return response()->json([
+                    'message' => 'Este horario ya no está disponible'
+                ], 409);
+            }
+        }
 
     $booking = Booking::create([
         'business_id' => $request->business_id,

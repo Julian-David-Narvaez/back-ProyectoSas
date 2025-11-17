@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\ScheduleController;
 use App\Http\Controllers\Api\PageController;
 use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\EmployeeController;
+use App\Http\Controllers\TestEmailController;
 
 // Autenticación
 Route::post('/register', [AuthController::class, 'register']);
@@ -20,6 +21,11 @@ Route::get('/businesses/{businessId}/employees', [EmployeeController::class, 'pu
 Route::get('/businesses/{businessId}/employees/{employeeId}/availability', [EmployeeController::class, 'getAvailability']);
 Route::get('/businesses/{businessId}/availability', [BookingController::class, 'getAvailability']);
 Route::post('/bookings', [BookingController::class, 'store']);
+
+// Rutas de prueba de correos (temporales - remover en producción)
+Route::get('/test-resend-sdk', [TestEmailController::class, 'testResendSDK']);
+Route::post('/test-custom-email', [TestEmailController::class, 'sendCustomEmail']);
+Route::get('/test-basic-resend', [TestEmailController::class, 'basicResendExample']);
 
 // Rutas protegidas
 Route::middleware('auth:sanctum')->group(function () {

@@ -31,4 +31,12 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    'resend' => [
+        'api_key' => env('RESEND_API_KEY'),
+        'default_from' => [
+            'email' => env('MAIL_FROM_ADDRESS', 'onboarding@resend.dev'),
+            'name' => env('MAIL_FROM_NAME', 'Sistema de Citas'),
+        ],
+    ],
+
 ];

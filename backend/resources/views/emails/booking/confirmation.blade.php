@@ -1,7 +1,7 @@
 @component('mail::message')
 # ✅ ¡Cita Confirmada!
 
-Hola **{{ $booking->customer_name }}**,
+Hola **{{ $booking->customer_name ?? 'Cliente' }}**,
 
 Tu cita ha sido registrada exitosamente. A continuación, los detalles:
 
